@@ -1,0 +1,37 @@
+# Cloudflare Workers configuration for upload service
+name = "handywriterz-upload-api"
+main = "api/upload.ts"
+compatibility_date = "2024-01-01"
+
+# Environment variables
+[env.production.vars]
+ENVIRONMENT = "production"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+
+# R2 bucket bindings
+[[env.production.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "handywriterz-uploads"
+
+[[env.staging.r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "handywriterz-uploads-staging"
+
+# Routes for production
+[[env.production.routes]]
+pattern = "api.handywriterz.com/upload/*"
+
+# Routes for staging
+[[env.staging.routes]]
+pattern = "staging-api.handywriterz.com/upload/*"
+
+# Worker settings
+[build]
+command = "npm run build"
+
+# Development settings
+[dev]
+port = 8787
+local_protocol = "http"

@@ -1,0 +1,3 @@
+import { formatFileSize } from '@/utils/formatters';
+
+// ...existing code where formatFileSize is used...

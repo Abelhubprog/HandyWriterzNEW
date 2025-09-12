@@ -1,0 +1,7 @@
+[build]
+  command = "pnpm build"
+  publish = "dist"
+  environment = { NODE_ENV = "production", NODE_OPTIONS = "--max-old-space-size=4096" }
+
+[functions]
+  node_bundler = "esbuild"

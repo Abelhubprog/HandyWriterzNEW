@@ -1,0 +1,47 @@
+# Cloudflare Pages configuration for HandyWriterz
+name = "handywriterz"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Pages configuration
+pages_build_output_dir = "dist"
+
+# Environment variables
+[env.production.vars]
+NODE_ENV = "production"
+VITE_APP_TITLE = "HandyWriterz"
+VITE_APP_DESCRIPTION = "Professional Academic Writing Services"
+
+[env.preview.vars]
+NODE_ENV = "staging"
+VITE_APP_TITLE = "HandyWriterz (Preview)"
+VITE_APP_DESCRIPTION = "Professional Academic Writing Services - Preview"
+
+# D1 Database
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "handywriterz-prod"
+database_id = "0e04c1b7-e87e-4131-8bfb-ab1d82f838c4"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "handywriterz-preview"
+database_id = "e3b74d4f-7fe3-4976-8973-d01225a86021"
+
+# R2 Storage
+[[env.production.r2_buckets]]
+binding = "STORAGE"
+bucket_name = "handywriterz-files"
+
+[[env.preview.r2_buckets]]
+binding = "STORAGE"
+bucket_name = "handywriterz-files-preview"
+
+# KV Storage (for sessions, cache, etc.)
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id-here"
+
+[[env.preview.kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-preview-namespace-id-here"
