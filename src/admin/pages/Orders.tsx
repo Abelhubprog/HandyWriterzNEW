@@ -21,6 +21,8 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { cloudflareDb } from '@/lib/cloudflare';
 import { formatDate } from '@/utils/formatters';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { getAuthHeaders } from '@/utils/apiAuth';
 
 interface Order {
   id: string;
@@ -34,7 +36,7 @@ interface Order {
   instructions: string;
   price: number;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  files: Array<{ name: string; url: string; path: string }>;
+  files: Array<{ name: string; url: string; path: string; size?: number }>;
   created_at: string;
   updated_at: string;
   user_email?: string;
@@ -52,6 +54,7 @@ interface OrderMessage {
 }
 
 const Orders: React.FC = () => {
+  const { session } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +79,12 @@ const Orders: React.FC = () => {
   const fetchOrders = async () => {
     setLoading(true);
     try {
+      // Get Clerk session token
+      const clerkToken = await session?.user?.getToken();
+      if (!clerkToken) {
+        throw new Error('Authentication required');
+      }
+
       // Fetch both orders and submissions
       const [ordersResult, submissionsResult] = await Promise.all([
         // Fetch traditional orders
@@ -90,7 +99,9 @@ const Orders: React.FC = () => {
         `).all(),
         
         // Fetch new submissions from our document upload system
-        fetch('/api/submissions').then(r => r.ok ? r.json() : { submissions: [] })
+        fetch('/api/submissions', {
+          headers: getAuthHeaders(clerkToken)
+        }).then(r => r.ok ? r.json() : { submissions: [] })
       ]);
 
       const ordersData: Order[] = [];
@@ -300,13 +311,18 @@ const Orders: React.FC = () => {
     }
   };
 
-  const downloadFile = (fileUrl: string, fileName: string) => {
-    const link = document.createElement('a');
-    link.href = fileUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadFile = async (fileUrl: string, fileName: string) => {
+    try {
+      // For Cloudflare R2 files, we can directly download them
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      toast.error('Failed to download file');
+    }
   };
 
   const getStatusColor = (status: Order['status']) => {
@@ -566,7 +582,14 @@ const Orders: React.FC = () => {
                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                       <div className="flex items-center">
                         <FiFileText className="h-5 w-5 text-gray-400 mr-3" />
-                        <span className="text-sm">{file.name}</span>
+                        <div>
+                          <span className="text-sm">{file.name}</span>
+                          {file.size && (
+                            <span className="text-xs text-gray-500 block">
+                              {Math.round(file.size / 1024)} KB
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={() => downloadFile(file.url, file.name)}

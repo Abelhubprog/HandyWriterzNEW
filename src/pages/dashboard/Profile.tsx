@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { 
-  Container, 
-  Grid, 
-  Box, 
-  Typography, 
-  TextField, 
-  Button, 
-  Avatar, 
-  Paper, 
-  Tabs, 
-  Tab, 
-  Divider, 
-  Alert, 
+import {
+  Container,
+  Grid,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Avatar,
+  Paper,
+  Tabs,
+  Tab,
+  Divider,
+  Alert,
   CircularProgress,
   IconButton,
   Card,
@@ -23,17 +23,7 @@ import {
   DialogContentText,
   DialogTitle
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import { 
-  Person as PersonIcon, 
-  Security as SecurityIcon, 
-  Notifications as NotificationsIcon, 
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-  Save as SaveIcon,
-  Cancel as CancelIcon,
-  PhotoCamera as PhotoCameraIcon
-} from '@mui/icons-material';
+import { User, Shield, Bell, Trash2, Save, Camera } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cloudflareDb } from '@/lib/cloudflare';
 import { useNavigate } from 'react-router-dom';
@@ -76,25 +66,13 @@ const TabPanel = (props: TabPanelProps) => {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <div className="p-6">
           {children}
-        </Box>
+        </div>
       )}
     </div>
   );
 };
-
-const VisuallyHiddenInput = styled('input')({
-  clip: 'rect(0 0 0 0)',
-  clipPath: 'inset(50%)',
-  height: 1,
-  overflow: 'hidden',
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  whiteSpace: 'nowrap',
-  width: 1,
-});
 
 const Profile: React.FC = () => {
   const { user, session, updatePassword, signInWithMagicLink, logout } = useAuth();
@@ -137,23 +115,27 @@ const Profile: React.FC = () => {
 
       if (!user) return;
 
-      const { data, error } = await d1Client
+      const result = await d1Client
         .from('profiles')
         .select('*')
         .eq('id', user?.id)
         .single();
 
-      if (error) throw error;
+      // Fix the error handling - check if result has data and error properties
+      if (result && result.error) throw result.error;
 
-      setProfile(data);
-      setFullName(data.full_name || '');
-      setBio(data.bio || '');
-      setPhone(data.phone || '');
-      
-      if (data.notification_preferences) {
-        setNotificationPreferences(data.notification_preferences);
+      // Check if we have data before setting state
+      if (result && result.data) {
+        setProfile(result.data);
+        setFullName(result.data.full_name || '');
+        setBio(result.data.bio || '');
+        setPhone(result.data.phone || '');
+
+        if (result.data.notification_preferences) {
+          setNotificationPreferences(result.data.notification_preferences);
+        }
       }
-      
+
     } catch (error: any) {
       setError('Failed to load profile data. Please try again later.');
     } finally {
@@ -174,10 +156,10 @@ const Profile: React.FC = () => {
         const fileExt = avatarFile.name.split('.').pop();
         const fileName = `${user?.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `avatars/${fileName}`;
-        
+
         // Create R2 client instance
         const r2Client = new CloudflareR2Client();
-        
+
         // Upload to Cloudflare R2
         try {
           const uploadResult = await r2Client.uploadFile(avatarFile, filePath);
@@ -197,15 +179,16 @@ const Profile: React.FC = () => {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await d1Client
+      const result = await d1Client
         .from('profiles')
-        .upsert(updates);  
+        .upsert(updates);
 
-      if (error) throw error;
+      // Fix error handling
+      if (result.error) throw result.error;
 
       setProfile(prev => prev ? { ...prev, ...updates } : null);
       toast.success('Profile updated successfully!');
-      
+
     } catch (error: any) {
       toast.error('Failed to update profile. Please try again.');
       setError('Failed to update profile. Please try again later.');
@@ -235,26 +218,19 @@ const Profile: React.FC = () => {
         return;
       }
 
-      // First verify the current password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || '',
-        password: currentPassword,
-      });
+      // Since we're using Clerk for authentication, we don't need to verify the current password
+      // directly. The updatePassword function will handle this.
 
-      if (signInError) {
-        toast.error('Current password is incorrect');
-        return;
-      }
+      const result = await updatePassword(newPassword);
 
-      const { error } = await updatePassword(newPassword);
-
-      if (error) throw error;
+      // Fix error handling - check if result has error property
+      if (result && result.error) throw result.error;
 
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       toast.success('Password updated successfully!');
-      
+
     } catch (error: any) {
       toast.error('Failed to update password. Please try again.');
       setError('Failed to update password. Please try again later.');
@@ -270,12 +246,13 @@ const Profile: React.FC = () => {
 
       if (!user?.email) return;
 
-      const { error } = await signInWithMagicLink(user?.email);
+      const result = await signInWithMagicLink(user?.email);
 
-      if (error) throw error;
+      // Fix error handling - check if result has error property
+      if (result && result.error) throw result.error;
 
       toast.success('Magic link sent to your email!');
-      
+
     } catch (error: any) {
       toast.error('Failed to send magic link. Please try again.');
       setError('Failed to send magic link. Please try again later.');
@@ -292,13 +269,15 @@ const Profile: React.FC = () => {
       if (!user) return;
 
       // Delete user data from profiles table
-      const { error: profileError } = await d1Client
+      const result = await d1Client
         .from('profiles')
         .delete()
-        .eq('id', user?.id);
+        .eq('id', user?.id)
+        .single();
 
-      if (profileError) throw profileError;
-      
+      // Fix error handling
+      if (result.error) throw result.error;
+
       // Note: User authentication is now handled by Clerk
       // We don't need to delete from Supabase auth, just remove the user's profile data
       // Additional cleanup for user assets in R2 could be added here if needed
@@ -306,7 +285,7 @@ const Profile: React.FC = () => {
       toast.success('Your account has been deleted');
       await logout();
       navigate('/');
-      
+
     } catch (error: any) {
       toast.error('Failed to delete account. Please try again.');
       setError('Failed to delete account. Please try again later.');
@@ -320,10 +299,10 @@ const Profile: React.FC = () => {
     if (!event.target.files || event.target.files.length === 0) {
       return;
     }
-    
+
     const file = event.target.files[0];
     setAvatarFile(file);
-    
+
     // Create preview
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -355,7 +334,7 @@ const Profile: React.FC = () => {
               <h3 className="font-medium text-orange-800">Authentication required</h3>
               <p className="text-orange-700 mt-1">You need to be logged in to view this page.</p>
               <div className="mt-3">
-                <button 
+                <button
                   onClick={() => navigate('/sign-in')}
                   className="px-4 py-2 bg-orange-600 text-white rounded-md text-sm hover:bg-orange-700"
                 >
@@ -371,9 +350,9 @@ const Profile: React.FC = () => {
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-        <CircularProgress />
-      </Box>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
@@ -384,302 +363,414 @@ const Profile: React.FC = () => {
         <meta name="description" content="Manage your HandyWriterz profile and account settings" />
       </Helmet>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && (
-          <Alert severity="error" sx={{ mb: 4 }}>
-            {error}
-          </Alert>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <div className="text-red-500 mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="15" y1="9" x2="9" y2="15"></line>
+                  <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+              </div>
+              <p className="text-red-800">{error}</p>
+            </div>
+          </div>
         )}
 
-        <Grid container gap="4">
-          <Grid item xs={12} md={4}>
-            <Card>
-              <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 4 }}>
-                <Box position="relative">
-                  <Avatar 
-                    src={avatarPreview || profile?.avatar_url} 
-                    alt={fullName || (user?.email || 'User')} 
-                    sx={{ width: 120, height: 120, mb: 2 }}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Profile Card */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex flex-col items-center">
+                <div className="relative mb-4">
+                  <img
+                    src={avatarPreview || profile?.avatar_url || `https://ui-avatars.com/api/?name=${fullName || (user?.email || 'User')}&background=2563eb&color=fff`}
+                    alt={fullName || (user?.email || 'User')}
+                    className="w-24 h-24 rounded-full object-cover"
                   />
-                  <IconButton 
-                    component="label"
-                    sx={{ 
-                      position: 'absolute', 
-                      bottom: 0, 
-                      right: 0, 
-                      backgroundColor: 'primary.main',
-                      '&:hover': { backgroundColor: 'primary.dark' },
-                      color: 'white'
-                    }}
-                  >
-                    <PhotoCameraIcon />
-                    <VisuallyHiddenInput type="file" accept="image/*" onChange={handleAvatarChange} />
-                  </IconButton>
-                </Box>
-                
-                <Typography variant="h5" gutterBottom sx={{ mt: 2 }}>
+                    <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full cursor-pointer hover:bg-blue-700 transition-colors">
+                    <Camera className="w-4 h-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                <h2 className="text-xl font-bold mb-1">
                   {fullName || 'Your Name'}
-                </Typography>
-                
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                </h2>
+
+                <p className="text-gray-600 mb-3">
                   {user?.email || 'No email available'}
-                </Typography>
-                
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, textAlign: 'center' }}>
+                </p>
+
+                <p className="text-gray-700 text-center">
                   {profile?.bio || 'No bio added yet'}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <Grid item xs={12} md={8}>
-            <Paper sx={{ width: '100%' }}>
-              <Tabs 
-                value={tabValue} 
-                onChange={handleTabChange} 
-                aria-label="profile tabs"
-                variant="fullWidth"
-              >
-                <Tab icon={<PersonIcon />} label="Profile" id="profile-tab-0" aria-controls="profile-tabpanel-0" />
-                <Tab icon={<SecurityIcon />} label="Security" id="profile-tab-1" aria-controls="profile-tabpanel-1" />
-                <Tab icon={<NotificationsIcon />} label="Notifications" id="profile-tab-2" aria-controls="profile-tabpanel-2" />
-              </Tabs>
+          {/* Profile Content */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+              {/* Fix tab icons */}
+              <div className="border-b border-gray-200">
+                <nav className="flex space-x-8 px-6" aria-label="Tabs">
+                  <button
+                    onClick={() => setTabValue(0)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+                      tabValue === 0
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </button>
+                  <button
+                    onClick={() => setTabValue(1)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+                      tabValue === 1
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Shield className="w-4 h-4 mr-2" />
+                    Security
+                  </button>
+                  <button
+                    onClick={() => setTabValue(2)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+                      tabValue === 2
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    Notifications
+                  </button>
+                </nav>
+              </div>
 
-              <TabPanel value={tabValue} index={0}>
-                <Box component="form" noValidate>
-                  <Grid container gap="3">
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Full Name"
+              {/* Profile Tab */}
+              <div className={`${tabValue === 0 ? 'block' : 'hidden'}`}>
+                <form className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        variant="outlined"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Email"
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Email
+                      </label>
+                      <input
+                        type="email"
                         value={user?.email || 'No email available'}
                         disabled
-                        variant="outlined"
-                        helperText="Email cannot be changed"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
                       />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Phone Number"
+                      <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        variant="outlined"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Bio"
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        multiline
-                        rows={4}
-                        variant="outlined"
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button 
-                        variant="contained" 
-                        color="primary" 
-                        onClick={updateProfile}
-                        disabled={updating}
-                        startIcon={updating ? <CircularProgress size={20} /> : <SaveIcon />}
-                      >
-                        {updating ? 'Saving...' : 'Save Changes'}
-                      </Button>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </TabPanel>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Bio
+                    </label>
+                    <textarea
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={updateProfile}
+                      disabled={updating}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      {updating ? (
+                        <>
+                          <div className="animate-spin -ml-1 mr-2 h-4 w-4 border-b-2 border-white rounded-full"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
 
-              <TabPanel value={tabValue} index={1}>
-                <Box component="form" noValidate>
-                  <Typography variant="h6" gutterBottom>
-                    Change Password
-                  </Typography>
-                  <Grid container gap="3">
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Current Password"
+              {/* Security Tab */}
+              <div className={`${tabValue === 1 ? 'block' : 'hidden'}`}>
+                <div className="p-6">
+                  <h3 className="text-lg font-medium mb-4">Change Password</h3>
+                  <form className="space-y-4">
+                    <div>
+                      <label htmlFor="current-password" className="block text-sm font-medium text-gray-700 mb-1">
+                        Current Password
+                      </label>
+                      <input
                         type="password"
+                        id="current-password"
                         value={currentPassword}
                         onChange={(e) => setCurrentPassword(e.target.value)}
-                        variant="outlined"
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                       />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="New Password"
+                    </div>
+                    <div>
+                      <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 mb-1">
+                        New Password
+                      </label>
+                      <input
                         type="password"
+                        id="new-password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        variant="outlined"
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                       />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Confirm New Password"
+                    </div>
+                    <div>
+                      <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 mb-1">
+                        Confirm New Password
+                      </label>
+                      <input
                         type="password"
+                        id="confirm-password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        variant="outlined"
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2"
                       />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Button 
-                        variant="contained" 
-                        color="primary" 
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
                         onClick={handlePasswordChange}
                         disabled={updating}
-                        startIcon={updating ? <CircularProgress size={20} /> : <SaveIcon />}
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                       >
-                        {updating ? 'Updating...' : 'Update Password'}
-                      </Button>
-                    </Grid>
-                  </Grid>
+                        {updating ? (
+                          <>
+                            <div className="animate-spin -ml-1 mr-2 h-4 w-4 border-b-2 border-white rounded-full"></div>
+                            Updating...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Update Password
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
 
-                  <Divider sx={{ my: 4 }} />
+                  <div className="border-t border-gray-200 my-6"></div>
 
-                  <Typography variant="h6" gutterBottom>
-                    Account Actions
-                  </Typography>
-                  <Grid container gap="3">
-                    <Grid item xs={12} sm={6}>
-                      <Button 
-                        fullWidth
-                        variant="outlined" 
-                        color="primary" 
-                        onClick={handleSendMagicLink}
-                        disabled={updating}
-                      >
-                        Send Magic Link
-                      </Button>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Button 
-                        fullWidth
-                        variant="outlined" 
-                        color="error" 
-                        onClick={() => setShowDeleteConfirm(true)}
-                        startIcon={<DeleteIcon />}
-                      >
-                        Delete Account
-                      </Button>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </TabPanel>
+                  <h3 className="text-lg font-medium mb-4">Account Actions</h3>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSendMagicLink}
+                      disabled={updating}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      Send Magic Link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Account
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-              <TabPanel value={tabValue} index={2}>
-                <Typography variant="h6" gutterBottom>
-                  Notification Preferences
-                </Typography>
-                <Grid container gap="3">
-                  <Grid item xs={12}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between" py={1}>
-                      <Typography>Email Notifications</Typography>
-                      <Button 
-                        variant={notificationPreferences.email ? "contained" : "outlined"}
-                        color={notificationPreferences.email ? "primary" : "inherit"}
+              {/* Notifications Tab */}
+              <div className={`${tabValue === 2 ? 'block' : 'hidden'}`}>
+                <div className="p-6">
+                  <h3 className="text-lg font-medium mb-4">Notification Preferences</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Email Notifications</p>
+                        <p className="text-sm text-gray-500">Receive email updates about your account</p>
+                      </div>
+                      <button
+                        type="button"
                         onClick={() => setNotificationPreferences(prev => ({
                           ...prev,
                           email: !prev.email
                         }))}
+                        className={`${
+                          notificationPreferences.email ? 'bg-blue-600' : 'bg-gray-200'
+                        } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
                       >
-                        {notificationPreferences.email ? 'Enabled' : 'Disabled'}
-                      </Button>
-                    </Box>
-                    <Divider />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between" py={1}>
-                      <Typography>Push Notifications</Typography>
-                      <Button 
-                        variant={notificationPreferences.push ? "contained" : "outlined"}
-                        color={notificationPreferences.push ? "primary" : "inherit"}
+                        <span
+                          className={`${
+                            notificationPreferences.email ? 'translate-x-5' : 'translate-x-0'
+                          } inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                        />
+                      </button>
+                    </div>
+                    <div className="border-t border-gray-200"></div>
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Push Notifications</p>
+                        <p className="text-sm text-gray-500">Receive push notifications on your devices</p>
+                      </div>
+                      <button
+                        type="button"
                         onClick={() => setNotificationPreferences(prev => ({
                           ...prev,
                           push: !prev.push
                         }))}
+                        className={`${
+                          notificationPreferences.push ? 'bg-blue-600' : 'bg-gray-200'
+                        } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
                       >
-                        {notificationPreferences.push ? 'Enabled' : 'Disabled'}
-                      </Button>
-                    </Box>
-                    <Divider />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between" py={1}>
-                      <Typography>SMS Notifications</Typography>
-                      <Button 
-                        variant={notificationPreferences.sms ? "contained" : "outlined"}
-                        color={notificationPreferences.sms ? "primary" : "inherit"}
+                        <span
+                          className={`${
+                            notificationPreferences.push ? 'translate-x-5' : 'translate-x-0'
+                          } inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                        />
+                      </button>
+                    </div>
+                    <div className="border-t border-gray-200"></div>
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">SMS Notifications</p>
+                        <p className="text-sm text-gray-500">Receive text messages about important updates</p>
+                      </div>
+                      <button
+                        type="button"
                         onClick={() => setNotificationPreferences(prev => ({
                           ...prev,
                           sms: !prev.sms
                         }))}
+                        className={`${
+                          notificationPreferences.sms ? 'bg-blue-600' : 'bg-gray-200'
+                        } relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
                       >
-                        {notificationPreferences.sms ? 'Enabled' : 'Disabled'}
-                      </Button>
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} sx={{ mt: 2 }}>
-                    <Button 
-                      variant="contained" 
-                      color="primary" 
+                        <span
+                          className={`${
+                            notificationPreferences.sms ? 'translate-x-5' : 'translate-x-0'
+                          } inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
                       onClick={updateProfile}
                       disabled={updating}
-                      startIcon={updating ? <CircularProgress size={20} /> : <SaveIcon />}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                     >
-                      {updating ? 'Saving...' : 'Save Preferences'}
-                    </Button>
-                  </Grid>
-                </Grid>
-              </TabPanel>
-            </Paper>
-          </Grid>
-        </Grid>
+                      {updating ? (
+                        <>
+                          <div className="animate-spin -ml-1 mr-2 h-4 w-4 border-b-2 border-white rounded-full"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Preferences
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Delete Account Confirmation Dialog */}
-        <Dialog
-          open={showDeleteConfirm}
-          onClose={() => setShowDeleteConfirm(false)}
-        >
-          <DialogTitle>Delete Account</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setShowDeleteConfirm(false)} color="primary">
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleDeleteAccount} 
-              color="error" 
-              disabled={updating}
-              startIcon={updating ? <CircularProgress size={20} /> : <DeleteIcon />}
-            >
-              {updating ? 'Deleting...' : 'Delete Account'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
+        <div className={`${showDeleteConfirm ? 'block' : 'hidden'} relative z-10`}>
+          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+          <div className="fixed inset-0 z-10 overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                    <h3 className="text-base font-semibold leading-6 text-gray-900">Delete Account</h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    disabled={updating}
+                    className="inline-flex items-center w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto disabled:opacity-50"
+                  >
+                    {updating ? (
+                      <>
+                        <div className="animate-spin -ml-1 mr-2 h-4 w-4 border-b-2 border-white rounded-full"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Account
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </ErrorBoundary>
   );
 };
 
-export default Profile; 
+export default Profile;

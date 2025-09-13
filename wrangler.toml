@@ -11,11 +11,13 @@ pages_build_output_dir = "dist"
 NODE_ENV = "production"
 VITE_APP_TITLE = "HandyWriterz"
 VITE_APP_DESCRIPTION = "Professional Academic Writing Services"
+CLERK_SECRET_KEY = "your-production-clerk-secret-key-here"
 
 [env.preview.vars]
 NODE_ENV = "staging"
 VITE_APP_TITLE = "HandyWriterz (Preview)"
 VITE_APP_DESCRIPTION = "Professional Academic Writing Services - Preview"
+CLERK_SECRET_KEY = "your-preview-clerk-secret-key-here"
 
 # D1 Database
 [[env.production.d1_databases]]

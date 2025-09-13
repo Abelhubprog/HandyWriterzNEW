@@ -9,6 +9,11 @@ import { Linkedin, Twitter, Instagram } from 'lucide-react';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ServicesProvider } from '@/providers/ServicesProvider';
 
+// Helper function to scroll to top of page
+const scrollToTop = () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 const RootLayout: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col">
@@ -59,37 +64,37 @@ const RootLayout: React.FC = () => {
                   <h3 className="text-xl font-semibold text-white mb-8">Services</h3>
                   <ul className="space-y-4">
                     <li>
-                      <Link to="/services/adult-health-nursing" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/adult-health-nursing" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Adult Health Nursing
                       </Link>
                     </li>
                     <li>
-                      <Link to="/services/mental-health-nursing" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/mental-health-nursing" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Mental Health Nursing
                       </Link>
                     </li>
                     <li>
-                      <Link to="/services/child-nursing" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/child-nursing" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Child Nursing
                       </Link>
                     </li>
                     <li>
-                      <Link to="/services/special-education" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/special-education" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Special Education
                       </Link>
                     </li>
                     <li>
-                      <Link to="/services/social-work" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/social-work" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Social Work
                       </Link>
                     </li>
                     <li>
-                      <Link to="/services/advanced-practice-nursing" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/advanced-practice-nursing" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Advanced Practice Nursing
                       </Link>
                     </li>
                     <li>
-                      <Link to="/services/crypto" className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
+                      <Link to="/services/crypto" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors hover:translate-x-1 inline-block">
                         Crypto
                       </Link>
                     </li>
@@ -101,22 +106,22 @@ const RootLayout: React.FC = () => {
                   <h3 className="text-xl font-semibold text-white mb-8">Support</h3>
                   <ul className="space-y-4">
                     <li>
-                      <Link to="/how-it-works" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/how-it-works" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         How It Works
                       </Link>
                     </li>
                     <li>
-                      <Link to="/faq" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/faq" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         FAQ
                       </Link>
                     </li>
                     <li>
-                      <Link to="/contact" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/contact" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         Contact Us
                       </Link>
                     </li>
                     <li>
-                      <Link to="/support" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/support" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         24/7 Support
                       </Link>
                     </li>
@@ -128,17 +133,17 @@ const RootLayout: React.FC = () => {
                   <h3 className="text-xl font-semibold text-white mb-8">Quick Links</h3>
                   <ul className="space-y-4">
                     <li>
-                      <Link to="/tools/check-turnitin" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/tools/check-turnitin" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         Check Turnitin
                       </Link>
                     </li>
                     <li>
-                      <Link to="/learning-hub" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/learning-hub" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         LearningHub
                       </Link>
                     </li>
                     <li>
-                      <Link to="/payment" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/payment" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         Payment
                       </Link>
                     </li>
@@ -150,12 +155,12 @@ const RootLayout: React.FC = () => {
                   <h3 className="text-xl font-semibold text-white mb-8">Company</h3>
                   <ul className="space-y-4">
                     <li>
-                      <Link to="/about" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/about" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         About Us
                       </Link>
                     </li>
                     <li>
-                      <Link to="/contact" className="text-gray-400 hover:text-white transition-colors">
+                      <Link to="/contact" onClick={scrollToTop} className="text-gray-400 hover:text-white transition-colors">
                         Contact
                       </Link>
                     </li>
@@ -170,10 +175,10 @@ const RootLayout: React.FC = () => {
                     &copy; {new Date().getFullYear()} HandyWriterz. All rights reserved.
                   </p>
                   <div className="mt-4 md:mt-0 flex space-x-8">
-                    <Link to="/privacy" className="text-gray-400 hover:text-white text-sm transition-colors">
+                    <Link to="/privacy" onClick={scrollToTop} className="text-gray-400 hover:text-white text-sm transition-colors">
                       Privacy Policy
                     </Link>
-                    <Link to="/terms" className="text-gray-400 hover:text-white text-sm transition-colors">
+                    <Link to="/terms" onClick={scrollToTop} className="text-gray-400 hover:text-white text-sm transition-colors">
                       Terms of Service
                     </Link>
                   </div>

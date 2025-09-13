@@ -51,7 +51,7 @@ const AdminDocuments = () => {
 
 const Dashboard = () => {
   const { user } = useUser();
-  const { isLoaded, isSignedIn, signOut } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState('orders');
@@ -143,11 +143,14 @@ const Dashboard = () => {
     return (words / 275) * baseRate;
   };
 
+  // Combined effect to handle authentication and navigation
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
-      navigate('/sign-in');
+    if (isLoaded) {
+      if (!isSignedIn || !user) {
+        navigate('/sign-in');
+      }
     }
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isLoaded, isSignedIn, user, navigate]);
 
   useEffect(() => {
     const checkAdminStatus = async () => {
@@ -170,12 +173,6 @@ const Dashboard = () => {
 
     checkAdminStatus();
   }, [user]);
-
-  useEffect(() => {
-    if (!user) {
-      navigate('/sign-in');
-    }
-  }, [user, navigate]);
 
   useEffect(() => {
     if (wordCount && studyLevel && dueDate && selectedService) {
@@ -1382,23 +1379,23 @@ const Dashboard = () => {
           </div>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             <button
               onClick={handleQuickCall}
-              className="p-6 bg-green-600 text-white rounded-xl hover:opacity-90 transition-all"
+              className="p-4 bg-green-600 text-white rounded-lg hover:opacity-90 transition-all"
             >
-              <Phone className="h-6 w-6 mb-2" />
-              <h3 className="font-semibold mb-1">Quick Call</h3>
-              <p className="text-sm opacity-90">Get instant help via Skype</p>
+              <Phone className="h-5 w-5 mb-1" />
+              <h3 className="font-semibold mb-1 text-sm">Quick Call</h3>
+              <p className="text-xs opacity-90">Get instant help via Skype</p>
             </button>
 
             <button
               onClick={handleQuickMessage}
-              className="p-6 bg-[#25D366] text-white rounded-xl hover:opacity-90 transition-all"
+              className="p-4 bg-[#25D366] text-white rounded-lg hover:opacity-90 transition-all"
             >
-              <MessageSquare className="h-6 w-6 mb-2" />
-              <h3 className="font-semibold mb-1">Quick Message</h3>
-              <p className="text-sm opacity-90">Chat with us on WhatsApp</p>
+              <MessageSquare className="h-5 w-5 mb-1" />
+              <h3 className="font-semibold mb-1 text-sm">Quick Message</h3>
+              <p className="text-xs opacity-90">Chat with us on WhatsApp</p>
             </button>
           </div>
 

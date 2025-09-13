@@ -43,19 +43,19 @@ export default {
           submissionData.id,
           submissionData.userId,
           submissionData.metadata.orderId,
-          submissionData.metadata.clientName,
-          submissionData.metadata.clientEmail,
-          submissionData.metadata.serviceType,
-          submissionData.metadata.subjectArea,
-          submissionData.metadata.wordCount,
-          submissionData.metadata.studyLevel,
-          submissionData.metadata.dueDate,
-          submissionData.metadata.module,
-          submissionData.metadata.instructions,
+          submissionData.metadata.clientName || '',
+          submissionData.metadata.clientEmail || '',
+          submissionData.metadata.serviceType || '',
+          submissionData.metadata.subjectArea || '',
+          submissionData.metadata.wordCount || 0,
+          submissionData.metadata.studyLevel || '',
+          submissionData.metadata.dueDate || '',
+          submissionData.metadata.module || '',
+          submissionData.metadata.instructions || '',
           submissionData.metadata.price || 0,
-          JSON.stringify(submissionData.files),
-          submissionData.status,
-          submissionData.createdAt
+          JSON.stringify(submissionData.files || []),
+          submissionData.status || 'submitted',
+          new Date().toISOString()
         ).run();
 
         if (result.success) {
@@ -76,7 +76,7 @@ export default {
         const { status } = await request.json();
 
         const result = await env.DATABASE.prepare(`
-          UPDATE submissions SET status = ?, updated_at = ? WHERE id = ?
+          UPDATE document_submissions SET status = ?, updated_at = ? WHERE id = ?
         `).bind(status, new Date().toISOString(), submissionId).run();
 
         if (result.success) {
@@ -99,7 +99,7 @@ export default {
           // Get submissions for a user
           const userId = submissionId.replace('user/', '');
           const results = await env.DATABASE.prepare(`
-            SELECT * FROM submissions WHERE user_id = ? ORDER BY created_at DESC
+            SELECT * FROM document_submissions WHERE user_id = ? ORDER BY created_at DESC
           `).bind(userId).all();
 
           return new Response(JSON.stringify({
@@ -110,7 +110,7 @@ export default {
         } else {
           // Get specific submission
           const result = await env.DATABASE.prepare(`
-            SELECT * FROM submissions WHERE id = ?
+            SELECT * FROM document_submissions WHERE id = ?
           `).bind(submissionId).first();
 
           if (result) {

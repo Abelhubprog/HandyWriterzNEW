@@ -1,8 +1,13 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useServices } from '@/hooks/useServices';
 import { Star, Shield, CheckCircle, Lock } from 'lucide-react';
 import HandyWriterzLogo from '@/components/HandyWriterzLogo';
+
+// Helper function to scroll to top of page
+const scrollToTop = () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
 
 const Footer: React.FC = () => {
   const { services } = useServices();
@@ -52,14 +57,14 @@ const Footer: React.FC = () => {
             <p className="text-gray-400 mt-2 max-w-md">
               Your trusted partner in academic excellence. Professional writing services tailored to your needs.
             </p>
-            
+
             {/* Trust Rating */}
             <div className="mt-4 flex items-center">
               <div className="flex items-center">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star 
-                    key={star} 
-                    className="h-5 w-5 text-yellow-400 fill-current" 
+                  <Star
+                    key={star}
+                    className="h-5 w-5 text-yellow-400 fill-current"
                     aria-hidden="true"
                   />
                 ))}
@@ -116,6 +121,7 @@ const Footer: React.FC = () => {
                 <Link
                   key={link.path}
                   to={link.path}
+                  onClick={scrollToTop}
                   className="text-gray-400 hover:text-white transition-colors text-sm flex items-center group"
                 >
                   <span className="group-hover:translate-x-1 transition-transform duration-200">
@@ -126,13 +132,14 @@ const Footer: React.FC = () => {
               <div className="sm:col-span-2 mt-4">
                 <Link
                   to="/services"
+                  onClick={scrollToTop}
                   className="inline-flex items-center text-primary-light hover:text-white transition-colors text-sm font-medium group"
                 >
                   <span>View All Services</span>
-                  <svg 
-                    className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" 
-                    fill="none" 
-                    viewBox="0 0 24 24" 
+                  <svg
+                    className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform duration-200"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     stroke="currentColor"
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -150,6 +157,7 @@ const Footer: React.FC = () => {
                 <li key={link.path}>
                   <Link
                     to={link.path}
+                    onClick={scrollToTop}
                     className="text-gray-400 hover:text-white transition-colors text-sm flex items-center group"
                   >
                     <span className="group-hover:translate-x-1 transition-transform duration-200">
@@ -158,7 +166,7 @@ const Footer: React.FC = () => {
                   </Link>
                 </li>
               ))}
-              
+
               {/* Add Admin Login Link here too */}
               <li>
                 <Link
@@ -183,6 +191,7 @@ const Footer: React.FC = () => {
                   <li key={link.path}>
                     <Link
                       to={link.path}
+                      onClick={scrollToTop}
                       className="text-gray-400 hover:text-white transition-colors text-sm flex items-center group"
                     >
                       <span className="group-hover:translate-x-1 transition-transform duration-200">
@@ -200,6 +209,7 @@ const Footer: React.FC = () => {
                   <li key={link.path}>
                     <Link
                       to={link.path}
+                      onClick={scrollToTop}
                       className="text-gray-400 hover:text-white transition-colors text-sm flex items-center group"
                     >
                       <span className="group-hover:translate-x-1 transition-transform duration-200">
@@ -224,20 +234,20 @@ const Footer: React.FC = () => {
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex space-x-6">
-                <Link to="/terms" className="text-sm text-gray-400 hover:text-white transition-colors">
+                <Link to="/terms" onClick={scrollToTop} className="text-sm text-gray-400 hover:text-white transition-colors">
                   Terms
                 </Link>
-                <Link to="/privacy" className="text-sm text-gray-400 hover:text-white transition-colors">
+                <Link to="/privacy" onClick={scrollToTop} className="text-sm text-gray-400 hover:text-white transition-colors">
                   Privacy
                 </Link>
-                <Link to="/privacy" className="text-sm text-gray-400 hover:text-white transition-colors">
+                <Link to="/privacy" onClick={scrollToTop} className="text-sm text-gray-400 hover:text-white transition-colors">
                   Cookies
                 </Link>
               </div>
-              
+
               {/* Make Admin Link Stand Out */}
-              <Link 
-                to="/auth/admin-login" 
+              <Link
+                to="/auth/admin-login"
                 className="text-sm px-3 py-1.5 bg-indigo-700/30 hover:bg-indigo-600/50 rounded-md text-white transition-colors flex items-center border border-indigo-600/30"
               >
                 <Lock className="h-3 w-3 mr-1.5" />

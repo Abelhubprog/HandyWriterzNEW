@@ -143,6 +143,7 @@ const SpecialEducation = lazy(() => import('./pages/services/special-education')
 const SocialWork = lazy(() => import('./pages/services/social-work'));
 const AdvancedPracticeNursing = lazy(() => import('./pages/services/advanced-practice-nursing'));
 const Crypto = lazy(() => import('./pages/services/crypto'));
+const ApiTestPage = lazy(() => import('./pages/ApiTestPage'));
 const NotFound = lazy(() => import('./pages/not-found'));
 
 // Create router for RouterProvider - changed to use createBrowserRouter
@@ -164,6 +165,7 @@ export const router = createBrowserRouter([
       { path: "how-it-works", element: withSuspenseAndError(HowItWorks)() },
       { path: "support", element: withSuspenseAndError(Support)() },
       { path: "payment", element: withSuspenseAndError(Payment)() },
+      { path: "api-test", element: withSuspenseAndError(ApiTestPage)() },
 
       // Service Pages
       { path: "services/adult-health-nursing", element: withSuspenseAndError(AdultHealthNursing)() },

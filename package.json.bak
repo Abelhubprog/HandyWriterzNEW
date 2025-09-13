@@ -9,7 +9,6 @@
   },
   "scripts": {
     "dev": "vite",
-    "dev:api": "wrangler pages dev --port 8788",
     "dev:clean": "vite --force",
     "build": "tsc --skipLibCheck && vite build",
     "preview": "vite preview",

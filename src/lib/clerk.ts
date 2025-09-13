@@ -10,9 +10,8 @@ function getClerkConfig() {
     publishableKey,
     signInUrl: import.meta.env.VITE_CLERK_SIGN_IN_URL || '/sign-in',
     signUpUrl: import.meta.env.VITE_CLERK_SIGN_UP_URL || '/sign-up',
-    afterSignInUrl: import.meta.env.VITE_CLERK_AFTER_SIGN_IN_URL || '/dashboard',
-    afterSignUpUrl: import.meta.env.VITE_CLERK_AFTER_SIGN_UP_URL || '/dashboard',
-    fallbackRedirectUrl: '/dashboard'
+    forceRedirectUrl: import.meta.env.VITE_CLERK_FORCE_REDIRECT_URL || '/dashboard',
+    fallbackRedirectUrl: import.meta.env.VITE_CLERK_FALLBACK_REDIRECT_URL || '/dashboard'
   };
 }
 

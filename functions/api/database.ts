@@ -1,7 +1,9 @@
 import { D1Database } from '@cloudflare/workers-types';
+import { authenticateUser, createErrorResponse, createSuccessResponse } from './auth';
 
 interface Env {
   DB: D1Database;
+  CLERK_SECRET_KEY: string;
 }
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -21,6 +23,16 @@ export const onRequest: PagesFunction<Env> = async (context) => {
   }
   
   try {
+    // Authenticate user for all database operations
+    const authResult = await authenticateUser(request, env);
+    if (!authResult.success) {
+      return createErrorResponse(
+        authResult.error.message, 
+        authResult.error.status, 
+        authResult.error.code
+      );
+    }
+    
     // Parse request body if present
     const requestBody = request.method !== 'GET' ? await request.json() : null;
     
@@ -69,9 +81,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const stmt = env.DB.prepare(query);
         const result = values.length > 0 ? await stmt.bind(...values).all() : await stmt.all();
         
-        return new Response(JSON.stringify({ data: result.results, error: null }), {
-          headers
-        });
+        return createSuccessResponse({ data: result.results });
       }
     } 
     else if (request.method === 'POST') {
@@ -90,9 +100,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const stmt = env.DB.prepare(query);
         const result = await stmt.bind(...values).all();
         
-        return new Response(JSON.stringify({ data: result.results[0], error: null }), {
-          headers
-        });
+        return createSuccessResponse({ data: result.results[0] });
       }
       // Custom SQL operations
       else if (pathParts[0] === 'sql') {
@@ -102,9 +110,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const stmt = env.DB.prepare(sql);
         const result = params ? await stmt.bind(...params).all() : await stmt.all();
         
-        return new Response(JSON.stringify({ data: result.results, error: null }), {
-          headers
-        });
+        return createSuccessResponse({ data: result.results });
       }
     }
     else if (request.method === 'PUT') {
@@ -130,9 +136,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const stmt = env.DB.prepare(query);
         const result = await stmt.bind(...[...setValues, ...whereValues]).all();
         
-        return new Response(JSON.stringify({ data: result.results[0], error: null }), {
-          headers
-        });
+        return createSuccessResponse({ data: result.results[0] });
       }
     }
     else if (request.method === 'DELETE') {
@@ -155,23 +159,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         const stmt = env.DB.prepare(query);
         const result = whereValues.length > 0 ? await stmt.bind(...whereValues).all() : await stmt.all();
         
-        return new Response(JSON.stringify({ data: result.results, error: null }), {
-          headers
-        });
+        return createSuccessResponse({ data: result.results });
       }
     }
     
     // Default response for unhandled routes
-    return new Response(JSON.stringify({ error: 'Invalid operation' }), {
-      status: 400,
-      headers
-    });
+    return createErrorResponse(
+      'Invalid operation', 
+      400, 
+      'INVALID_OPERATION'
+    );
   } catch (error) {
     console.error('Database API error:', error);
     
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers
-    });
+    return createErrorResponse(
+      error instanceof Error ? error.message : 'Internal server error',
+      500,
+      'INTERNAL_ERROR'
+    );
   }
 };

@@ -20,8 +20,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'react-hot-toast';
+import { FileUploader } from '@/components/ui/FileUploader';
 import { d1Client as supabase } from '@/lib/d1Client';
 import { useAuth } from '@/hooks/useAuth';
 import { documentSubmissionService } from '@/services/documentSubmissionService';
@@ -43,80 +43,88 @@ interface OrderDetails {
   additionalServices: string[];
 }
 
-    try {
-      // Step A: Create the order record first so submissions reference a real order id.
-      const orderPayload = {
-        user_id: user?.id,
-        service_type: serviceType,
-        status: 'awaiting_admin', // default to awaiting_admin while admin reviews
-        amount: totalPrice,
-        currency: 'USD',
-        payment_status: 'unpaid',
-        payment_method: orderDetails.paymentMethod,
-        metadata: {
-          title: orderDetails.title,
-          description: orderDetails.description,
-          deadline: orderDetails.deadline,
-          academic_level: orderDetails.academicLevel,
-          word_count: orderDetails.wordCount,
-          urgency: orderDetails.urgency,
-          additional_services: orderDetails.additionalServices,
-        }
-      };
+// Constants
+const ACADEMIC_LEVELS = [
+  { value: 'high_school', label: 'High School' },
+  { value: 'undergraduate', label: 'Undergraduate' },
+  { value: 'masters', label: "Master's" },
+  { value: 'phd', label: 'PhD' },
+  { value: 'level_4', label: 'Level 4' },
+  { value: 'level_5', label: 'Level 5' },
+  { value: 'level_6', label: 'Level 6' },
+  { value: 'level_7', label: 'Level 7' },
+];
 
-      const { data: createdOrder, error: createError } = await supabase
-        .from('orders')
-        .insert(orderPayload)
-        .select()
-        .single();
+const URGENCY_OPTIONS = [
+  { value: 'standard', label: 'Standard (7+ days)' },
+  { value: 'urgent', label: 'Urgent (3-7 days)' },
+  { value: 'super_urgent', label: 'Super Urgent (1-3 days)' },
+];
 
-      if (createError || !createdOrder) {
-        throw createError || new Error('Failed to create order');
-      }
+const ADDITIONAL_SERVICES = [
+  { id: 'plagiarism_report', label: 'Plagiarism Report', price: 15 },
+  { id: 'abstract_page', label: 'Abstract Page', price: 10 },
+  { id: 'table_of_contents', label: 'Table of Contents', price: 10 },
+  { id: 'references', label: 'References', price: 10 },
+  { id: 'appendices', label: 'Appendices', price: 15 },
+  { id: 'proofreading', label: 'Proofreading', price: 20 },
+];
 
-      // Step B: If there are files, upload and create a submission that references this order
-      let submissionResult = { success: false, fileUrls: [] as string[], submissionId: '' };
-      if (files.length > 0) {
-        const submission = await documentSubmissionService.submitDocumentsToAdmin(
-          user?.id || 'anonymous',
-          files,
-          {
-            orderId: createdOrder.id,
-            serviceType,
-            wordCount: orderDetails.wordCount,
-            studyLevel: orderDetails.academicLevel,
-            dueDate: orderDetails.deadline,
-            instructions: orderDetails.description,
-            price: totalPrice
-          },
-          { notifyAdminEmail: true, adminEmail: undefined, notifyInApp: true }
-        );
+const PAYMENT_METHODS = [
+  { value: 'paypal', label: 'PayPal', icon: Wallet },
+  { value: 'credit_card', label: 'Credit Card', icon: CreditCard },
+  { value: 'crypto', label: 'Cryptocurrency', icon: DollarSign },
+];
 
-        if (!submission.success) {
-          // Try to mark order as errored so admin doesn't wait
-          await supabase.from('orders').update({ status: 'pending' }).eq('id', createdOrder.id);
-          throw new Error('Failed to upload files to storage or notify admin. Please try again.');
-        }
+const MAX_FILES = 10;
+const BASE_PRICE_PER_100_WORDS = 5;
 
-        submissionResult = { success: true, fileUrls: submission.fileUrls || [], submissionId: submission.submissionId || '' };
-      }
+const OrderFlow: React.FC<OrderFlowProps> = ({ serviceType, serviceName }) => {
+  const navigate = useNavigate();
+  const { session, user } = useAuth();
+  
+  const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  
+  const [orderDetails, setOrderDetails] = useState<OrderDetails>({
+    title: '',
+    description: '',
+    deadline: '',
+    academicLevel: 'undergraduate',
+    wordCount: 1000,
+    fileUrls: [],
+    paymentMethod: 'paypal',
+    urgency: 'standard',
+    additionalServices: [],
+  });
+  
+  const [totalPrice, setTotalPrice] = useState(0);
 
-      // Step C: Update order metadata with file URLs and submission reference
-      try {
-        const updatedMetadata = { ...(createdOrder.metadata || {}), file_urls: submissionResult.fileUrls || [], submission_id: submissionResult.submissionId || null };
-        await supabase.from('orders').update({ metadata: updatedMetadata }).eq('id', createdOrder.id);
-      } catch (metaErr) {
-        console.warn('Failed to update order with submission metadata', metaErr);
-      }
-
-      toast.success('Documents submitted to admin. Payment will be available after admin review.');
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err);
-      toast.error(err instanceof Error ? err.message : 'Failed to submit order or documents. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Calculate price when order details change
+  useEffect(() => {
+    const basePrice = (orderDetails.wordCount / 100) * BASE_PRICE_PER_100_WORDS;
+    
+    // Academic level multipliers
+    const academicMultiplier = 
+      orderDetails.academicLevel === 'high_school' ? 1.0 :
+      orderDetails.academicLevel === 'undergraduate' ? 1.2 :
+      orderDetails.academicLevel === 'masters' ? 1.5 :
+      orderDetails.academicLevel === 'phd' ? 2.0 :
+      orderDetails.academicLevel.startsWith('level_') ? 
+        (parseInt(orderDetails.academicLevel.split('_')[1]) / 4) + 0.75 : 1.0;
+    
+    // Urgency multipliers
+    const urgencyMultiplier = 
+      orderDetails.urgency === 'standard' ? 1.0 :
+      orderDetails.urgency === 'urgent' ? 1.5 :
+      orderDetails.urgency === 'super_urgent' ? 2.0 : 1.0;
+    
+    // Additional services total
+    const additionalServicesTotal = orderDetails.additionalServices.reduce((total, serviceId) => {
+      const service = ADDITIONAL_SERVICES.find(s => s.id === serviceId);
+      return total + (service ? service.price : 0);
     }, 0);
 
     // Calculate final price
@@ -124,7 +132,7 @@ interface OrderDetails {
 
     // Round to 2 decimal places
     setTotalPrice(Math.round(calculatedPrice * 100) / 100);
-  };
+  }, [orderDetails]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -176,35 +184,6 @@ interface OrderDetails {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const uploadFiles = async (): Promise<string[]> => {
-    if (files.length === 0) return [];
-
-    setIsUploading(true);
-    try {
-      // Use the fileUploadService which delegates to cloudflareUploadService and documentSubmissionService
-      const { uploadMultipleFiles } = await import('@/services/fileUploadService');
-      const results = await uploadMultipleFiles(files, (p) => {
-        // optional progress hook
-      }, `orders/${user?.id || 'anonymous'}`);
-
-      const successful = results.filter(r => r.success && r.url).map(r => r.url as string);
-
-      const failed = results.filter(r => !r.success);
-      if (failed.length > 0) {
-        // If any file failed, report and throw so caller can handle
-        const msgs = failed.map(f => `${f.fileName}: ${f.error || 'upload failed'}`).join('; ');
-        throw new Error(`Some files failed to upload: ${msgs}`);
-      }
-
-      return successful;
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to upload files. Please try again.');
-      return [];
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
   const handleNextStep = () => {
     if (currentStep === 1) {
       if (!orderDetails.title || !orderDetails.description) {
@@ -231,6 +210,13 @@ interface OrderDetails {
     if (!session) {
       toast.error('Please log in to place an order');
       navigate('/login', { state: { returnTo: window.location.pathname } });
+      return;
+    }
+
+    // Get Clerk session token
+    const clerkToken = await session.user?.getToken();
+    if (!clerkToken) {
+      toast.error('Authentication required. Please log in again.');
       return;
     }
 
@@ -284,7 +270,8 @@ interface OrderDetails {
             clientName: user?.fullName || user?.username || 'Customer',
             clientEmail: user?.primaryEmailAddress?.emailAddress || ''
           },
-          { notifyAdminEmail: true, adminEmail: undefined, notifyInApp: true }
+          { notifyAdminEmail: true, adminEmail: undefined, notifyInApp: true },
+          clerkToken // Pass the authentication token
         );
 
         if (!submission.success) {
@@ -490,52 +477,20 @@ interface OrderDetails {
             <div className="space-y-6">
               <div>
                 <Label className="text-base">Upload Files (Optional)</Label>
-                <div className="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500 mb-2">
-                    Drag and drop files here, or click to browse
-                  </p>
-                  <input
-                    type="file"
-                    multiple
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="file-upload"
-                    aria-label="Upload files"
-                    title="Upload files"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => document.getElementById('file-upload')?.click()}
-                  >
-                    Browse Files
-                  </Button>
-                </div>
+                <FileUploader
+                  maxFiles={10}
+                  maxSizeInMB={50}
+                  acceptedFileTypes={['.pdf', '.doc', '.docx', '.txt', '.md', '.rtf', '.odt', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.zip']}
+                  onFilesChange={(files) => setFiles(files.map(f => f as File))}
+                  onUploadComplete={(successfulFiles) => {
+                    // Update the fileUrls in orderDetails
+                    setOrderDetails(prev => ({
+                      ...prev,
+                      fileUrls: successfulFiles.map(f => f.url || '')
+                    }));
+                  }}
+                />
               </div>
-
-              {files.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Selected Files:</h3>
-                  <ul className="space-y-2">
-                    {files.map((file, index) => (
-                      <li key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm truncate max-w-[80%]">{file.name}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <span className="sr-only">Remove</span>
-                          <AlertCircle className="h-4 w-4" />
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           )}
 
@@ -659,4 +614,6 @@ interface OrderDetails {
       </Card>
     </div>
   );
-}
+};
+
+export default OrderFlow;

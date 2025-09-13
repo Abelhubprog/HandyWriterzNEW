@@ -26,8 +26,8 @@ export const clerkConfig = {
   domain: shouldUseDomain ? CLERK_DOMAIN : undefined,
   signInUrl: '/sign-in',
   signUpUrl: '/sign-up',
-  afterSignInUrl: '/dashboard',
-  afterSignUpUrl: '/dashboard',
+  forceRedirectUrl: '/dashboard',
+  fallbackRedirectUrl: '/dashboard',
   appearance: {
     layout: {
       socialButtonsPlacement: 'top',

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useLocation } from 'react-router-dom';
 import { stableLinkPaymentService } from '@/services/stableLinkPaymentService';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CheckCircle, AlertCircle, Clock, Wallet } from 'lucide-react';
+import { CheckCircle, AlertCircle, Clock, Wallet, CreditCard } from 'lucide-react';
 
 interface OrderDetails {
   orderId: string;
@@ -17,20 +18,69 @@ interface OrderDetails {
   metadata: Record<string, any>;
 }
 
-interface PaymentProps {
-  orderDetails: OrderDetails;
-  onSuccess: () => void;
-  onCancel: () => void;
+interface PaymentData {
+  orderId: string;
+  amount: number;
+  currency: string;
+  orderDetails: {
+    serviceType: string;
+    subjectArea: string;
+    wordCount: number;
+    studyLevel: string;
+    dueDate: string;
+    module: string;
+    instructions: string;
+  };
+  files: Array<{ name: string; url: string; path: string }>;
 }
 
-const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel }) => {
+const PaymentPage: React.FC = () => {
   const { user } = useUser();
+  const location = useLocation();
   const [paymentState, setPaymentState] = useState<'init' | 'processing' | 'success' | 'error'>('init');
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [isWalletConnected, setIsWalletConnected] = useState<boolean>(false);
   const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
+
+  // Extract payment data from location state
+  useEffect(() => {
+    const paymentData = location.state?.paymentData as PaymentData | undefined;
+
+    if (paymentData) {
+      setOrderDetails({
+        orderId: paymentData.orderId,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        description: `Order for ${paymentData.orderDetails.serviceType}`,
+        serviceType: paymentData.orderDetails.serviceType,
+        metadata: {
+          ...paymentData.orderDetails,
+          files: paymentData.files
+        }
+      });
+    } else {
+      // Fallback for direct access or missing state
+      toast.error('Payment data not found. Please initiate payment from the dashboard.');
+    }
+  }, [location.state]);
+
+  const onSuccess = () => {
+    setPaymentState('success');
+    toast.success('Payment completed successfully!');
+  };
+
+  const onCancel = () => {
+    setPaymentState('init');
+    toast('Payment cancelled', { icon: 'ℹ️' });
+  };
+
+  const onError = (message: string) => {
+    setPaymentState('error');
+    toast.error(message || 'Payment failed');
+  };
 
   // Mock wallet connection - in production, use wagmi or similar for real wallet integration
   const connectWallet = async () => {
@@ -52,7 +102,7 @@ const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel
       clearInterval(pollingInterval);
       setPollingInterval(null);
     }
-    toast.info('Wallet disconnected');
+    toast('Wallet disconnected', { icon: 'ℹ️' });
   };
 
   const createPayment = async () => {
@@ -63,6 +113,11 @@ const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel
 
     if (!isWalletConnected) {
       toast.error('Please connect your wallet first');
+      return;
+    }
+
+    if (!orderDetails) {
+      toast.error('Order details not found');
       return;
     }
 
@@ -88,14 +143,14 @@ const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel
       };
 
       const paymentResponse = await stableLinkPaymentService.createPayment(paymentRequest);
-      
+
       setPaymentId(paymentResponse.paymentId);
-      
+
       // Start polling for payment status
       const interval = setInterval(async () => {
         try {
           const status = await stableLinkPaymentService.checkPaymentStatus(paymentResponse.paymentId);
-          
+
           if (status.status === 'completed') {
             setPaymentState('success');
             clearInterval(interval);
@@ -115,7 +170,7 @@ const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel
       }, 2000); // Poll every 2 seconds
 
       setPollingInterval(interval);
-      
+
       toast.success('Payment initiated. Monitoring status...');
     } catch (error) {
       console.error('Payment creation error:', error);
@@ -126,6 +181,8 @@ const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel
 
   const generateReceipt = (paymentId: string) => {
     // Generate receipt - in production, send email or display PDF
+    if (!orderDetails) return;
+
     const receipt = {
       id: paymentId,
       orderId: orderDetails.orderId,
@@ -135,34 +192,51 @@ const PaymentPage: React.FC<PaymentProps> = ({ orderDetails, onSuccess, onCancel
       status: 'completed',
       walletAddress: walletAddress
     };
-    
+
     // For demo, show toast
     toast.success('Receipt generated. Check your email for details.');
     console.log('Receipt:', receipt);
-    
+
     // In production, send via email or generate PDF
   };
 
   const cancelPayment = () => {
     if (pollingInterval) {
       clearInterval(pollingInterval);
-      setPollingInterval(null);
     }
+    setPollingInterval(null);
     setPaymentState('init');
     setPaymentId(null);
     setTransactionHash(null);
     onCancel();
-    toast.info('Payment cancelled');
+    toast('Payment cancelled', { icon: 'ℹ️' });
   };
 
+  if (!orderDetails) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardContent className="text-center py-8">
+            <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Payment Data Missing</h3>
+            <p className="text-gray-500 mb-4">Please initiate payment from the dashboard.</p>
+            <Button onClick={() => window.history.back()}>
+              Go Back
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+      <div className="max-w-md mx-auto">
         {/* Header */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">Secure Payment</CardTitle>
-            <CardDescription>
+        <Card className="mb-4 sm:mb-6">
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="text-xl sm:text-2xl font-bold">Secure Payment</CardTitle>
+            <CardDescription className="text-sm sm:text-base">
               Complete your payment using cryptocurrency
             </CardDescription>
           </CardHeader>

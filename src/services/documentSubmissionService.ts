@@ -1,4 +1,5 @@
 import { toast } from 'react-hot-toast';
+import { getAuthHeaders, authenticatedFetch } from '@/utils/apiAuth';
 
 interface SubmissionMetadata {
   orderId: string;
@@ -42,7 +43,8 @@ class DocumentSubmissionService {
     userId: string,
     files: File[],
     metadata: SubmissionMetadata,
-    options: SubmissionOptions = {}
+    options: SubmissionOptions = {},
+    authToken?: string
   ): Promise<SubmissionResult> {
     try {
       // Validate inputs
@@ -54,8 +56,12 @@ class DocumentSubmissionService {
         throw new Error('User ID is required');
       }
 
+      if (!authToken) {
+        throw new Error('Authentication token is required');
+      }
+
       // Upload files to Cloudflare R2
-      const uploadedFiles = await this.uploadFilesToR2(files, userId, metadata.orderId);
+      const uploadedFiles = await this.uploadFilesToR2(files, userId, metadata.orderId, authToken);
 
       if (uploadedFiles.length === 0) {
         throw new Error('Failed to upload files to storage');
@@ -73,11 +79,11 @@ class DocumentSubmissionService {
       };
 
       // Save submission to database (Cloudflare D1) and capture id
-      await this.saveSubmissionToDatabase(submissionData);
+      await this.saveSubmissionToDatabase(submissionData, authToken);
 
       // Send notifications if requested
       if (options.notifyAdminEmail || options.notifyTelegram || options.notifyInApp) {
-        await this.sendNotifications(submissionData, options);
+        await this.sendNotifications(submissionData, options, authToken);
       }
 
       return {
@@ -101,7 +107,8 @@ class DocumentSubmissionService {
   private async uploadFilesToR2(
     files: File[],
     userId: string,
-    orderId: string
+    orderId: string,
+    authToken: string
   ): Promise<Array<{ name: string; url: string; path: string; size: number }>> {
     const uploadedFiles: Array<{ name: string; url: string; path: string; size: number }> = [];
 
@@ -114,7 +121,7 @@ class DocumentSubmissionService {
       const filePath = `submissions/${userId}/${orderId}/${fileName}`;
 
       // Upload to Cloudflare R2 via Worker
-      const uploadResult = await this.uploadToR2Worker(file, filePath);
+      const uploadResult = await this.uploadToR2Worker(file, filePath, authToken);
 
       if (!uploadResult.success) {
         // If any upload fails, stop and throw so caller can handle retry/rollback.
@@ -137,7 +144,8 @@ class DocumentSubmissionService {
    */
   async uploadToR2Worker(
     file: File,
-    filePath: string
+    filePath: string,
+    authToken: string
   ): Promise<{ success: boolean; url?: string; error?: string }> {
     try {
       const formData = new FormData();
@@ -146,6 +154,7 @@ class DocumentSubmissionService {
 
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: getAuthHeaders(authToken),
         body: formData
       });
 
@@ -198,15 +207,12 @@ class DocumentSubmissionService {
   /**
    * Save submission to Cloudflare D1 database
    */
-  private async saveSubmissionToDatabase(submissionData: any): Promise<void> {
+  private async saveSubmissionToDatabase(submissionData: any, authToken: string): Promise<void> {
     try {
-      // For production, this would connect to actual Cloudflare D1
-      // For now, using mock implementation that's compatible with production schema
+      // Call the real API endpoint for submissions
       const response = await fetch('/api/submissions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(authToken),
         body: JSON.stringify({
           submission: submissionData
         })
@@ -215,6 +221,12 @@ class DocumentSubmissionService {
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`Database save failed: ${response.status} ${text}`);
+      }
+
+      // Parse the response to get the submission ID
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error?.message || result.error || 'Failed to save submission to database');
       }
 
     } catch (error) {
@@ -226,10 +238,10 @@ class DocumentSubmissionService {
   /**
    * Send notifications to admin via multiple channels
    */
-  private async sendNotifications(submissionData: any, options: SubmissionOptions): Promise<void> {
+  private async sendNotifications(submissionData: any, options: SubmissionOptions, authToken: string): Promise<void> {
     try {
       // Use the new document submission email API
-      await this.sendDocumentSubmissionEmails(submissionData, options);
+      await this.sendDocumentSubmissionEmails(submissionData, options, authToken);
     } catch (error) {
       // Try fallback email notification
       await this.sendFallbackEmailNotification(submissionData, options);
@@ -239,7 +251,7 @@ class DocumentSubmissionService {
   /**
    * Send document submission emails to admin and customer
    */
-  private async sendDocumentSubmissionEmails(submissionData: any, options: SubmissionOptions): Promise<void> {
+  private async sendDocumentSubmissionEmails(submissionData: any, options: SubmissionOptions, authToken: string): Promise<void> {
     try {
       // Prepare document submission data for the email API
       const emailPayload = {
@@ -270,9 +282,7 @@ class DocumentSubmissionService {
       // Send via new email API
       const response = await fetch('/api/send-documents', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(authToken),
         body: JSON.stringify(emailPayload)
       });
 
@@ -293,23 +303,124 @@ class DocumentSubmissionService {
    */
   private async sendFallbackEmailNotification(submissionData: any, options: SubmissionOptions): Promise<void> {
     try {
-      // Simple email notification as fallback
-      // In a real implementation, this would use a simple email service
-      // Notification sent via fallback method
+      const adminEmail = options.adminEmail || 'admin@handywriterz.com';
+
+      // Create a simple email notification as fallback
+      const emailData = {
+        to: adminEmail,
+        subject: `Document Submission - Order ${submissionData.metadata.orderId}`,
+        text: `
+          New document submission received!
+
+          Order ID: ${submissionData.metadata.orderId}
+          Service Type: ${submissionData.metadata.serviceType || 'Not specified'}
+          Subject Area: ${submissionData.metadata.subjectArea || 'Not specified'}
+          Word Count: ${submissionData.metadata.wordCount || 0}
+          Study Level: ${submissionData.metadata.studyLevel || 'Not specified'}
+          Due Date: ${submissionData.metadata.dueDate || 'Not specified'}
+          Module: ${submissionData.metadata.module || 'Not specified'}
+          Instructions: ${submissionData.metadata.instructions || 'None provided'}
+          Price: £${submissionData.metadata.price || 0}
+
+          Client: ${submissionData.metadata.clientName || 'Unknown'} (${submissionData.metadata.clientEmail || 'No email'})
+          Submitted: ${new Date(submissionData.createdAt).toLocaleString()}
+
+          Files (${submissionData.files.length}):
+          ${submissionData.files.map((file: any) => `- ${file.name} (${this.formatFileSize(file.size)})`).join('\n')}
+
+          This is an automated fallback notification. The primary email system may be unavailable.
+        `,
+        html: `
+          <h2>New Document Submission Received</h2>
+          <p><strong>Order ID:</strong> ${submissionData.metadata.orderId}</p>
+          <p><strong>Service Type:</strong> ${submissionData.metadata.serviceType || 'Not specified'}</p>
+          <p><strong>Subject Area:</strong> ${submissionData.metadata.subjectArea || 'Not specified'}</p>
+          <p><strong>Word Count:</strong> ${submissionData.metadata.wordCount || 0}</p>
+          <p><strong>Study Level:</strong> ${submissionData.metadata.studyLevel || 'Not specified'}</p>
+          <p><strong>Due Date:</strong> ${submissionData.metadata.dueDate || 'Not specified'}</p>
+          <p><strong>Module:</strong> ${submissionData.metadata.module || 'Not specified'}</p>
+          <p><strong>Instructions:</strong> ${submissionData.metadata.instructions || 'None provided'}</p>
+          <p><strong>Price:</strong> £${submissionData.metadata.price || 0}</p>
+
+          <p><strong>Client:</strong> ${submissionData.metadata.clientName || 'Unknown'} (${submissionData.metadata.clientEmail || 'No email'})</p>
+          <p><strong>Submitted:</strong> ${new Date(submissionData.createdAt).toLocaleString()}</p>
+
+          <h3>Files (${submissionData.files.length})</h3>
+          <ul>
+            ${submissionData.files.map((file: any) => `<li>${file.name} (${this.formatFileSize(file.size)})</li>`).join('')}
+          </ul>
+
+          <p><em>This is an automated fallback notification. The primary email system may be unavailable.</em></p>
+        `
+      };
+
+      // Try to send via fallback email API
+      const response = await fetch('/api/send-email-fallback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Fallback email failed: ${response.status}`);
+      }
+
+      console.log('Fallback email notification sent successfully');
     } catch (error) {
-      // Fallback notification failed
+      console.error('Fallback email notification failed:', error);
+      // As a last resort, create a system log that can be monitored by admin
+      this.logAdminNotification(submissionData);
     }
+  }
+
+  /**
+   * Log admin notification for manual follow-up
+   */
+  private logAdminNotification(submissionData: any): void {
+    const logEntry = {
+      type: 'admin_notification_fallback',
+      timestamp: new Date().toISOString(),
+      submissionId: submissionData.id,
+      orderId: submissionData.metadata.orderId,
+      client: submissionData.metadata.clientName || 'Unknown',
+      clientEmail: submissionData.metadata.clientEmail || 'No email',
+      files: submissionData.files.map((f: any) => f.name),
+      status: 'requires_manual_followup'
+    };
+
+    // Store in local storage as fallback (will be cleared on browser close)
+    try {
+      const existingLogs = JSON.parse(localStorage.getItem('admin_notification_logs') || '[]');
+      existingLogs.push(logEntry);
+      localStorage.setItem('admin_notification_logs', JSON.stringify(existingLogs));
+    } catch (e) {
+      console.error('Failed to store admin notification log:', e);
+    }
+
+    // Also log to console for development
+    console.warn('ADMIN NOTIFICATION REQUIRED:', logEntry);
+  }
+
+  /**
+   * Format file size for display
+   */
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
   /**
    * Get submission status
    */
-  async getSubmissionStatus(submissionId: string): Promise<any> {
+  async getSubmissionStatus(submissionId: string, authToken: string): Promise<any> {
     try {
       const response = await fetch(`/api/submissions/${submissionId}`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiToken}`
-        }
+        headers: getAuthHeaders(authToken)
       });
 
       if (response.ok) {
@@ -325,12 +436,10 @@ class DocumentSubmissionService {
   /**
    * List user submissions
    */
-  async getUserSubmissions(userId: string): Promise<any[]> {
+  async getUserSubmissions(userId: string, authToken: string): Promise<any[]> {
     try {
       const response = await fetch(`/api/submissions/user/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${this.apiToken}`
-        }
+        headers: getAuthHeaders(authToken)
       });
 
       if (response.ok) {
